@@ -119,11 +119,12 @@ Chat [@userinfobot](https://t.me/userinfobot) → bot bales dengan ID kamu (angk
 
 Project Settings → Environment Variables (Production):
 
-| Var | Isi |
-|---|---|
-| `TELEGRAM_BOT_TOKEN` | dari BotFather |
-| `TELEGRAM_WEBHOOK_SECRET` | string acak panjang (terserah kamu, mis. hasil `openssl rand -hex 32`) |
-| `TELEGRAM_ALLOWED_USER_IDS` | user ID kamu, comma-separated kalau lebih dari satu |
+| Var | Wajib | Isi |
+|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | ya | dari BotFather |
+| `TELEGRAM_WEBHOOK_SECRET` | ya | string acak panjang (terserah kamu, mis. hasil `openssl rand -hex 32`) |
+| `TELEGRAM_ALLOWED_USER_IDS` | ya | user ID kamu, comma-separated kalau lebih dari satu |
+| `TELEGRAM_ALLOWED_CHAT_IDS` | opsional | group/supergroup ID, comma-separated. Buat fitur "balas di grup" — lihat 7f. |
 
 Redeploy.
 
@@ -137,7 +138,7 @@ curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
   -d '{
     "url": "https://<DOMAIN>.vercel.app/api/telegram/webhook",
     "secret_token": "<SECRET>",
-    "allowed_updates": ["message"]
+    "allowed_updates": ["message", "edited_message"]
   }'
 ```
 
@@ -154,8 +155,19 @@ Chat ke bot kamu:
 - `/start` atau `/help` — bantuan
 - `/search kata kunci` — cari pesan ber-reaction
 - `/search` — 10 pesan terbaru
+- _ketik kata kunci langsung_ — sama aja, otomatis dianggap query (private chat only)
 
 Kalau user-mu belum di whitelist, bot bales `Akses ditolak` + nge-print user ID-mu — copy ke env var `TELEGRAM_ALLOWED_USER_IDS`, redeploy.
+
+**f. (Opsional) Pake bot di group**
+
+1. **BotFather** → `/setprivacy` → pilih bot kamu → **Disable**. Tanpa ini, di group bot cuma "lihat" command yang ditujukan ke dia (`/cmd@botname`); dengan disable, dia bisa lihat semua command tanpa harus mention.
+2. **Add bot ke group** kamu (sebagai member biasa, gak perlu admin).
+3. Forward 1 pesan dari group itu ke [@JsonDumpBot](https://t.me/JsonDumpBot) → catat `forward_from_chat.id` (negatif, mis. `-1001234567890`).
+4. Tambah ID itu ke env var `TELEGRAM_ALLOWED_CHAT_IDS` di Vercel → redeploy.
+5. Di group, pakai `/search kata kunci`. Plain text di-ignore biar gak nyepam.
+
+Kalau group belum di-whitelist, bot diem aja (gak ngasih error, supaya kalau bot kamu di-add ke group orang lain juga gak ngasih sinyal apa-apa).
 
 ---
 
