@@ -203,6 +203,19 @@ export async function POST(req: NextRequest) {
   const isPrivate = chatType === "private";
   const isGroup = chatType === "group" || chatType === "supergroup";
 
+  // Debug helper: echo chat info. Bypasses whitelist on purpose so kamu bisa
+  // dapetin chat ID buat di-set di TELEGRAM_ALLOWED_CHAT_IDS.
+  if (matchCommand(text, "chatid") !== null) {
+    await reply(
+      chatId,
+      `chat.id: <code>${chatId}</code>\n` +
+        `chat.type: <code>${chatType}</code>\n` +
+        `from.id: <code>${fromId}</code>`,
+      { html: true, replyTo: messageId }
+    );
+    return NextResponse.json({ ok: true });
+  }
+
   // 2. Authorization
   if (isPrivate) {
     if (
