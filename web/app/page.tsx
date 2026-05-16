@@ -43,6 +43,12 @@ export default function Home() {
   if (!searched) {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center px-4 py-10">
+        <div
+          className="text-7xl sm:text-8xl mb-3 sm:mb-4 select-none leading-none"
+          aria-hidden="true"
+        >
+          {"\u{1F602}"}
+        </div>
         <Logo size="lg" />
         <h1 className="mt-5 sm:mt-6 text-xl sm:text-3xl font-light tracking-wide text-neutral-200 text-center">
           Cari Garapan
