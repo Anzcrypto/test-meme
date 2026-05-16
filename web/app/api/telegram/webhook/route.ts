@@ -120,9 +120,9 @@ const HELP_TEXT =
   "<b>Cara pakai:</b>\n" +
   "Kirim <i>kata kunci</i> langsung \u2014 hasil otomatis muncul.\n\n" +
   "<b>Command:</b>\n" +
-  "<code>/search kata kunci</code> \u2014 sama aja\n" +
-  "<code>/search</code> \u2014 10 pesan terbaru\n" +
-  "<code>/help</code> \u2014 bantuan";
+  "<code>/s kata kunci</code> atau <code>/search kata kunci</code>\n" +
+  "<code>/s</code> \u2014 10 pesan terbaru\n" +
+  "<code>/h</code> atau <code>/help</code> \u2014 bantuan";
 
 async function handleSearch(
   chatId: number,
@@ -237,14 +237,18 @@ export async function POST(req: NextRequest) {
   }
 
   // 3. Routing
-  // /help, /start
-  if (matchCommand(text, "help") !== null || matchCommand(text, "start") !== null) {
+  // /help, /h, /start
+  if (
+    matchCommand(text, "help") !== null ||
+    matchCommand(text, "h") !== null ||
+    matchCommand(text, "start") !== null
+  ) {
     await reply(chatId, HELP_TEXT, { html: true, replyTo: isGroup ? messageId : undefined });
     return NextResponse.json({ ok: true });
   }
 
-  // /search [query]
-  const searchArg = matchCommand(text, "search");
+  // /search [query] or /s [query]
+  const searchArg = matchCommand(text, "search") ?? matchCommand(text, "s");
   if (searchArg !== null) {
     await handleSearch(chatId, searchArg, isGroup ? messageId : undefined);
     return NextResponse.json({ ok: true });
