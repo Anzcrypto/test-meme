@@ -19,6 +19,7 @@ out/
 dist/
 *.log
 .DS_Store
+*.tsbuildinfo
 
 # IDE
 .vscode/
