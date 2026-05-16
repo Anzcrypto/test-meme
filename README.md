@@ -102,6 +102,63 @@ Trigger pertama manual: **Actions** tab → `sync-telegram` → **Run workflow**
 
 ---
 
+### 7. (Opsional) Bot Telegram untuk search
+
+Selain web, kamu bisa search lewat chat dengan bot pribadi. Webhook handler-nya udah ada di `web/app/api/telegram/webhook/route.ts` dan deploy bareng Next.js — gak perlu service tambahan.
+
+**a. Bikin bot**
+
+1. Chat [@BotFather](https://t.me/BotFather) → `/newbot` → ikuti instruksi → catat **bot token**.
+2. (Opsional, biar lebih responsif) BotFather → `/setprivacy` → pilih bot → **Disable**.
+
+**b. Cari Telegram user ID kamu**
+
+Chat [@userinfobot](https://t.me/userinfobot) → bot bales dengan ID kamu (angka). Cuma user dengan ID di whitelist yang bisa pakai bot.
+
+**c. Tambah env vars di Vercel**
+
+Project Settings → Environment Variables (Production):
+
+| Var | Isi |
+|---|---|
+| `TELEGRAM_BOT_TOKEN` | dari BotFather |
+| `TELEGRAM_WEBHOOK_SECRET` | string acak panjang (terserah kamu, mis. hasil `openssl rand -hex 32`) |
+| `TELEGRAM_ALLOWED_USER_IDS` | user ID kamu, comma-separated kalau lebih dari satu |
+
+Redeploy.
+
+**d. Daftarkan webhook (sekali doang)**
+
+Ganti `<TOKEN>`, `<SECRET>`, dan `<DOMAIN>` lalu jalankan di terminal mana aja:
+
+```bash
+curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://<DOMAIN>.vercel.app/api/telegram/webhook",
+    "secret_token": "<SECRET>",
+    "allowed_updates": ["message"]
+  }'
+```
+
+Cek status:
+
+```bash
+curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"
+```
+
+**e. Pakai bot**
+
+Chat ke bot kamu:
+
+- `/start` atau `/help` — bantuan
+- `/search kata kunci` — cari pesan ber-reaction
+- `/search` — 10 pesan terbaru
+
+Kalau user-mu belum di whitelist, bot bales `Akses ditolak` + nge-print user ID-mu — copy ke env var `TELEGRAM_ALLOWED_USER_IDS`, redeploy.
+
+---
+
 ## Catatan
 
 - Worker fetch maks `SYNC_LIMIT` pesan terakhir per run; pesan dengan reaction baru ke-update karena `unique (channel_id, message_id)` + upsert.
