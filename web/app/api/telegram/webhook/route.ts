@@ -10,6 +10,11 @@ const ALLOWED_USERS = (process.env.TELEGRAM_ALLOWED_USER_IDS || "")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
+// Whitelist group / supergroup chat IDs (negative numbers, mis. -1001234567890).
+const ALLOWED_CHATS = (process.env.TELEGRAM_ALLOWED_CHAT_IDS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 const RESULT_LIMIT = 10;
 const TEXT_TRUNCATE = 280;
@@ -39,11 +44,18 @@ async function tg(method: string, payload: Record<string, unknown>) {
   }
 }
 
-function reply(chatId: number, text: string, html = false) {
+function reply(
+  chatId: number,
+  text: string,
+  opts: { html?: boolean; replyTo?: number } = {}
+) {
   return tg("sendMessage", {
     chat_id: chatId,
     text,
-    ...(html ? { parse_mode: "HTML", disable_web_page_preview: true } : {}),
+    ...(opts.html
+      ? { parse_mode: "HTML", disable_web_page_preview: true }
+      : {}),
+    ...(opts.replyTo ? { reply_to_message_id: opts.replyTo } : {}),
   });
 }
 
@@ -112,7 +124,11 @@ const HELP_TEXT =
   "<code>/search</code> \u2014 10 pesan terbaru\n" +
   "<code>/help</code> \u2014 bantuan";
 
-async function handleSearch(chatId: number, q: string) {
+async function handleSearch(
+  chatId: number,
+  q: string,
+  replyTo?: number
+) {
   await tg("sendChatAction", { chat_id: chatId, action: "typing" });
 
   let result;
@@ -120,14 +136,15 @@ async function handleSearch(chatId: number, q: string) {
     result = await searchMessages(q);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown error";
-    await reply(chatId, `\u26a0\ufe0f Error: ${msg}`);
+    await reply(chatId, `\u26a0\ufe0f Error: ${msg}`, { replyTo });
     return;
   }
 
   if (result.data.length === 0) {
     await reply(
       chatId,
-      q ? `Tidak ada hasil untuk "${q}".` : "Belum ada pesan."
+      q ? `Tidak ada hasil untuk "${q}".` : "Belum ada pesan.",
+      { replyTo }
     );
     return;
   }
@@ -140,7 +157,23 @@ async function handleSearch(chatId: number, q: string) {
     .join("\n\n");
 
   const safe = body.length > TG_LIMIT ? body.slice(0, TG_LIMIT) + "\n\u2026" : body;
-  await reply(chatId, safe, true);
+  await reply(chatId, safe, { html: true, replyTo });
+}
+
+/* ------------ Helpers ------------ */
+
+/**
+ * Strip leading `/cmd` and optional `@botname`. Returns null kalau bukan command yg dimaksud.
+ * "/search foo" -> "foo"
+ * "/search@MyBot foo" -> "foo"
+ * "/search" -> ""
+ * "foo" -> null
+ */
+function matchCommand(text: string, cmd: string): string | null {
+  const m = text.match(/^\/([A-Za-z0-9_]+)(?:@[A-Za-z0-9_]+)?(?:\s+([\s\S]*))?$/);
+  if (!m) return null;
+  if (m[1].toLowerCase() !== cmd.toLowerCase()) return null;
+  return (m[2] || "").trim();
 }
 
 /* ------------ Webhook handler ------------ */
@@ -155,57 +188,64 @@ export async function POST(req: NextRequest) {
   }
 
   const update = await req.json().catch(() => null);
-  const msg = update?.message;
+  // Tangani edited message juga supaya kalau user ngedit query, bot ikut respond
+  const msg = update?.message || update?.edited_message;
   if (!msg) return NextResponse.json({ ok: true });
 
   const chatId: number | undefined = msg.chat?.id;
   const chatType: string | undefined = msg.chat?.type;
   const fromId: number | undefined = msg.from?.id;
+  const messageId: number | undefined = msg.message_id;
   const text: string = (msg.text || "").trim();
 
-  if (!chatId) return NextResponse.json({ ok: true });
+  if (!chatId || !text) return NextResponse.json({ ok: true });
 
-  // 2. Only allow private chats
-  if (chatType !== "private") {
+  const isPrivate = chatType === "private";
+  const isGroup = chatType === "group" || chatType === "supergroup";
+
+  // 2. Authorization
+  if (isPrivate) {
+    if (
+      ALLOWED_USERS.length === 0 ||
+      !ALLOWED_USERS.includes(String(fromId))
+    ) {
+      await reply(chatId, `\u{1F512} Akses ditolak. User ID kamu: ${fromId}`);
+      return NextResponse.json({ ok: true });
+    }
+  } else if (isGroup) {
+    // Group harus di-whitelist by chat ID. Bot diem aja kalau gak — gak nyepam.
+    if (!ALLOWED_CHATS.includes(String(chatId))) {
+      console.log(`[telegram] ignored group chat ${chatId}`);
+      return NextResponse.json({ ok: true });
+    }
+  } else {
+    // channel / lainnya: ignore
     return NextResponse.json({ ok: true });
   }
 
-  // 3. Whitelist
-  if (
-    ALLOWED_USERS.length === 0 ||
-    !ALLOWED_USERS.includes(String(fromId))
-  ) {
-    await reply(
-      chatId,
-      `\u{1F512} Akses ditolak. User ID kamu: ${fromId}`
-    );
+  // 3. Routing
+  // /help, /start
+  if (matchCommand(text, "help") !== null || matchCommand(text, "start") !== null) {
+    await reply(chatId, HELP_TEXT, { html: true, replyTo: isGroup ? messageId : undefined });
     return NextResponse.json({ ok: true });
   }
 
-  // 4. Route command
-  if (text === "/start" || text === "/help") {
-    await reply(chatId, HELP_TEXT, true);
+  // /search [query]
+  const searchArg = matchCommand(text, "search");
+  if (searchArg !== null) {
+    await handleSearch(chatId, searchArg, isGroup ? messageId : undefined);
     return NextResponse.json({ ok: true });
   }
 
-  if (text === "/search" || text.toLowerCase().startsWith("/search ")) {
-    const q = text.slice(7).trim();
-    await handleSearch(chatId, q);
-    return NextResponse.json({ ok: true });
-  }
-
-  // Plain text → treat as search query.
-  // Ignore other slash-commands (mis. /something) supaya gak nyari literal "/foo".
-  if (text && !text.startsWith("/")) {
+  // Plain text: hanya di private chat. Di group, biar gak nyepam, harus pake /search.
+  if (isPrivate && !text.startsWith("/")) {
     await handleSearch(chatId, text);
     return NextResponse.json({ ok: true });
   }
 
-  // Empty / unknown command
-  await reply(
-    chatId,
-    "Ketik kata kunci buat nyari, atau /help.",
-    true
-  );
+  // Private + slash command tak dikenal -> kasih hint
+  if (isPrivate) {
+    await reply(chatId, "Ketik kata kunci buat nyari, atau /help.", { html: true });
+  }
   return NextResponse.json({ ok: true });
 }
