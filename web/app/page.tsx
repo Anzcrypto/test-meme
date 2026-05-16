@@ -108,16 +108,14 @@ export default function Home() {
 
 function MessageCard({ m }: { m: Message }) {
   return (
-    <li className="border border-neutral-800 bg-neutral-900/40 rounded-lg p-3 sm:p-4">
+    <li className="border border-neutral-800 bg-neutral-900/40 rounded-lg p-3 sm:p-4 overflow-hidden">
       <div className="flex items-center justify-between gap-2 text-[11px] sm:text-xs text-neutral-500 mb-2">
         <span className="truncate">{m.channel_name || m.channel_id}</span>
         <span className="shrink-0">{formatDate(m.date)}</span>
       </div>
 
       {m.text ? (
-        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-          {m.text}
-        </p>
+        <p className="msg-text text-sm leading-relaxed">{m.text}</p>
       ) : (
         <p className="text-sm italic text-neutral-500">
           ({m.media_type || "no text"})
