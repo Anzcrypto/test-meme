@@ -105,8 +105,10 @@ async function searchMessages(q: string) {
 const HELP_TEXT =
   "<b>Garapan Bot</b>\n" +
   "Cari pesan ber-reaction dari channel.\n\n" +
+  "<b>Cara pakai:</b>\n" +
+  "Kirim <i>kata kunci</i> langsung \u2014 hasil otomatis muncul.\n\n" +
   "<b>Command:</b>\n" +
-  "<code>/search kata kunci</code> \u2014 cari pesan\n" +
+  "<code>/search kata kunci</code> \u2014 sama aja\n" +
   "<code>/search</code> \u2014 10 pesan terbaru\n" +
   "<code>/help</code> \u2014 bantuan";
 
@@ -192,10 +194,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  // Unknown / plain text
+  // Plain text → treat as search query.
+  // Ignore other slash-commands (mis. /something) supaya gak nyari literal "/foo".
+  if (text && !text.startsWith("/")) {
+    await handleSearch(chatId, text);
+    return NextResponse.json({ ok: true });
+  }
+
+  // Empty / unknown command
   await reply(
     chatId,
-    "Pakai <code>/search kata kunci</code> untuk mencari, atau /help.",
+    "Ketik kata kunci buat nyari, atau /help.",
     true
   );
   return NextResponse.json({ ok: true });
