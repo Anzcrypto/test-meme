@@ -2,4 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body { background: #0b0d10; color: #e6e6e6; }
+html, body {
+  background: #0b0d10;
+  color: #e6e6e6;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* Hide search input clear "x" button (Chrome/Edge) for cleaner look */
+input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}

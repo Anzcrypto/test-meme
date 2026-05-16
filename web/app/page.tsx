@@ -9,10 +9,12 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [count, setCount] = useState(0);
   const [searched, setSearched] = useState(false);
+  const [lastQuery, setLastQuery] = useState("");
 
   async function load(query: string) {
     setLoading(true);
     setSearched(true);
+    setLastQuery(query);
     try {
       const res = await fetch(`/api/messages?q=${encodeURIComponent(query)}`);
       const json = await res.json();
@@ -26,7 +28,7 @@ export default function Home() {
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!q.trim()) return;
-    load(q);
+    load(q.trim());
   }
 
   function reset() {
@@ -34,18 +36,19 @@ export default function Home() {
     setMessages([]);
     setCount(0);
     setSearched(false);
+    setLastQuery("");
   }
 
   // ---------- Landing (Google-style) ----------
   if (!searched) {
     return (
-      <main className="min-h-screen flex flex-col items-center justify-center px-4">
+      <main className="min-h-screen flex flex-col items-center justify-center px-4 py-10">
         <Logo size="lg" />
-        <h1 className="mt-6 text-2xl sm:text-3xl font-light tracking-wide text-neutral-200">
+        <h1 className="mt-5 sm:mt-6 text-xl sm:text-3xl font-light tracking-wide text-neutral-200 text-center">
           Cari Garapan
         </h1>
 
-        <form onSubmit={onSubmit} className="mt-8 w-full max-w-xl">
+        <form onSubmit={onSubmit} className="mt-6 sm:mt-8 w-full max-w-xl">
           <SearchInput
             value={q}
             onChange={setQ}
@@ -54,7 +57,7 @@ export default function Home() {
           />
         </form>
 
-        <p className="mt-6 text-xs text-neutral-500">
+        <p className="mt-5 sm:mt-6 text-xs text-neutral-500 text-center">
           Hanya pesan yang dapat reaction.
         </p>
       </main>
@@ -63,65 +66,36 @@ export default function Home() {
 
   // ---------- Results ----------
   return (
-    <main className="min-h-screen px-4 sm:px-6">
-      <header className="max-w-3xl mx-auto pt-4 pb-3 flex items-center gap-4 border-b border-neutral-800 sticky top-0 bg-[#0b0d10]/95 backdrop-blur z-10">
-        <button onClick={reset} className="shrink-0">
-          <Logo size="sm" />
-        </button>
-        <form onSubmit={onSubmit} className="flex-1">
-          <SearchInput value={q} onChange={setQ} loading={loading} compact />
-        </form>
+    <main className="min-h-screen">
+      <header className="sticky top-0 z-10 bg-[#0b0d10]/95 backdrop-blur border-b border-neutral-800">
+        <div className="max-w-3xl mx-auto px-3 sm:px-6 py-3 flex items-center gap-3 sm:gap-4">
+          <button
+            onClick={reset}
+            className="shrink-0"
+            aria-label="Kembali ke beranda"
+          >
+            <Logo size="sm" />
+          </button>
+          <form onSubmit={onSubmit} className="flex-1 min-w-0">
+            <SearchInput value={q} onChange={setQ} loading={loading} compact />
+          </form>
+        </div>
       </header>
 
-      <section className="max-w-3xl mx-auto py-4">
+      <section className="max-w-3xl mx-auto px-3 sm:px-6 py-4">
         <div className="text-xs text-neutral-500 mb-3">
-          {loading ? "Mencari..." : `${count} pesan ditemukan`}
+          {loading
+            ? "Mencari..."
+            : `${count} pesan${lastQuery ? ` untuk "${lastQuery}"` : ""}`}
         </div>
 
-        <ul className="space-y-3">
+        <ul className="space-y-2 sm:space-y-3">
           {messages.map((m) => (
-            <li
-              key={m.id}
-              className="border border-neutral-800 bg-neutral-900/40 rounded-lg p-4"
-            >
-              <div className="flex items-center justify-between text-xs text-neutral-500 mb-2">
-                <span>{m.channel_name || m.channel_id}</span>
-                <span>{new Date(m.date).toLocaleString()}</span>
-              </div>
-              {m.text ? (
-                <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                  {m.text}
-                </p>
-              ) : (
-                <p className="text-sm italic text-neutral-500">
-                  ({m.media_type || "no text"})
-                </p>
-              )}
-              <div className="flex flex-wrap items-center gap-2 mt-3">
-                {m.reactions?.map((r, i) => (
-                  <span
-                    key={i}
-                    className="text-xs bg-neutral-800 border border-neutral-700 rounded-full px-2 py-0.5"
-                  >
-                    {r.emoji.startsWith("custom:") ? "custom" : r.emoji} {r.count}
-                  </span>
-                ))}
-                {m.link && (
-                  <a
-                    href={m.link}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="ml-auto text-xs text-blue-400 hover:underline"
-                  >
-                    Buka di Telegram
-                  </a>
-                )}
-              </div>
-            </li>
+            <MessageCard key={m.id} m={m} />
           ))}
           {!loading && messages.length === 0 && (
             <li className="text-sm text-neutral-500 text-center py-10">
-              Tidak ada hasil untuk &ldquo;{q}&rdquo;.
+              Tidak ada hasil untuk &ldquo;{lastQuery}&rdquo;.
             </li>
           )}
         </ul>
@@ -132,11 +106,65 @@ export default function Home() {
 
 /* ---------------- Components ---------------- */
 
+function MessageCard({ m }: { m: Message }) {
+  return (
+    <li className="border border-neutral-800 bg-neutral-900/40 rounded-lg p-3 sm:p-4">
+      <div className="flex items-center justify-between gap-2 text-[11px] sm:text-xs text-neutral-500 mb-2">
+        <span className="truncate">{m.channel_name || m.channel_id}</span>
+        <span className="shrink-0">{formatDate(m.date)}</span>
+      </div>
+
+      {m.text ? (
+        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+          {m.text}
+        </p>
+      ) : (
+        <p className="text-sm italic text-neutral-500">
+          ({m.media_type || "no text"})
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-3">
+        {m.reactions?.map((r, i) => (
+          <span
+            key={i}
+            className="text-[11px] sm:text-xs bg-neutral-800 border border-neutral-700 rounded-full px-2 py-0.5 whitespace-nowrap"
+          >
+            {r.emoji.startsWith("custom:") ? "custom" : r.emoji} {r.count}
+          </span>
+        ))}
+        {m.link && (
+          <a
+            href={m.link}
+            target="_blank"
+            rel="noreferrer"
+            className="ml-auto text-[11px] sm:text-xs text-blue-400 hover:underline whitespace-nowrap"
+          >
+            Buka di Telegram
+          </a>
+        )}
+      </div>
+    </li>
+  );
+}
+
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  const now = new Date();
+  const sameYear = d.getFullYear() === now.getFullYear();
+  // Mobile-friendly: 14 Mei 2025 atau 14 Mei (kalau tahun ini)
+  return d.toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "short",
+    year: sameYear ? undefined : "numeric",
+  });
+}
+
 function Logo({ size = "lg" }: { size?: "lg" | "sm" }) {
   const cls =
     size === "lg"
-      ? "text-6xl sm:text-7xl"
-      : "text-2xl";
+      ? "text-5xl sm:text-7xl"
+      : "text-xl sm:text-2xl";
   return (
     <div className={`${cls} font-bold tracking-tight select-none`}>
       <span className="text-blue-400">G</span>
@@ -166,7 +194,7 @@ function SearchInput({
   return (
     <div
       className={`relative flex items-center bg-neutral-900 border border-neutral-700 rounded-full hover:border-neutral-500 focus-within:border-neutral-400 transition-colors ${
-        compact ? "h-10" : "h-12"
+        compact ? "h-10" : "h-11 sm:h-12"
       }`}
     >
       <input
@@ -174,14 +202,21 @@ function SearchInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder="Ketik kata kunci..."
         autoFocus={autoFocus}
-        className="flex-1 bg-transparent outline-none px-5 text-base placeholder:text-neutral-500"
+        type="search"
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        className={`flex-1 min-w-0 bg-transparent outline-none placeholder:text-neutral-500 ${
+          compact ? "pl-4 pr-1 text-sm" : "pl-5 pr-2 text-base"
+        }`}
       />
       <button
         type="submit"
         disabled={loading}
         aria-label="Cari"
-        className={`flex items-center justify-center text-neutral-300 hover:text-white disabled:opacity-50 ${
-          compact ? "w-10 h-10" : "w-12 h-12"
+        className={`flex shrink-0 items-center justify-center text-neutral-300 hover:text-white disabled:opacity-50 ${
+          compact ? "w-10 h-10" : "w-11 h-11 sm:w-12 sm:h-12"
         }`}
       >
         <SearchIcon className={compact ? "w-4 h-4" : "w-5 h-5"} />
